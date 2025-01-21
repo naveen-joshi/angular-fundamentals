@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { NumberOnlyDirective } from '../../directives/number-only.directive';
 
 // Custom validator function
 function passwordStrengthValidator(control: any) {
@@ -25,7 +26,7 @@ function passwordStrengthValidator(control: any) {
 @Component({
   selector: 'app-reactive-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, NumberOnlyDirective],
   template: `
     <div class="p-4 max-w-md mx-auto">
       <h2 class="text-2xl font-bold mb-4">Reactive Form Demo</h2>

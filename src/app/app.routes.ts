@@ -39,5 +39,10 @@ export const routes: Routes = [
     path: 'ssr-features',
     loadComponent: () => import('./components/ssr-features/ssr-features.component')
       .then(m => m.SsrFeaturesComponent)
+  },
+  {
+    path: 'field-config',
+    loadComponent: () => import('./components/field-config-table/field-config-table.component')
+      .then(m => m.FieldConfigTableComponent)
   }
 ];
