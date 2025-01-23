@@ -1,18 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject, PLATFORM_ID, Inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, PLATFORM_ID, Inject, effect } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AgGridModule } from 'ag-grid-angular';
 import { AllCommunityModule, ClientSideRowModelModule, ColDef, Module } from 'ag-grid-community';
 import { CheckboxDropdownCellComponent } from '../checkbox-dropdown-cell/checkbox-dropdown-cell.component';
-import { FieldConfigService, FieldType } from '../../services/field-config.service';
-import { firstValueFrom } from 'rxjs';
-import { Store } from '@ngrx/store';
-import { FieldConfigActions } from '../../store/field-config/field-config.actions';
-import { selectFieldConfigs, selectSaving } from '../../store/field-config/field-config.selectors';
-
-interface FieldConfigContext {
-  getAvailableOrders: (data: any, field: string) => Promise<number[]>;
-}
+import { FieldType } from '../../services/field-config.service';
+import { FieldConfigStore } from '../../store/field-config/field-config.store';
 
 interface FieldTypeConfig {
   field: FieldType;
@@ -36,24 +29,29 @@ interface FieldTypeConfig {
         @if (isBrowser) {
           <ag-grid-angular
             class="w-full h-full"
-            [modules]="modules"
-            [rowData]="fieldConfigs$ | async"
+            [rowData]="store.transformedConfigs()"
             [columnDefs]="columnDefs"
-            [context]="context"
+            [modules]="modules"
+            [theme]="'legacy'"
             [defaultColDef]="defaultColDef"
-            theme="legacy"
-          >
-          </ag-grid-angular>
+            (gridReady)="onGridReady()"
+          />
         }
       </div>
-      
-      <div class="mt-4 flex justify-end">
-        <button 
-          (click)="saveConfiguration()"
-          class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-          [disabled]="saving$ | async"
+
+      <div class="mt-4 flex justify-end gap-4">
+        @if (store.saving()) {
+          <span class="text-blue-600">Saving changes...</span>
+        }
+        @if (store.error()) {
+          <span class="text-red-600">{{ store.error() }}</span>
+        }
+        <button
+          class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          [disabled]="store.saving()"
+          (click)="saveChanges()"
         >
-          {{ (saving$ | async) ? 'Saving...' : 'Save Configuration' }}
+          Save Changes
         </button>
       </div>
     </div>
@@ -61,90 +59,68 @@ interface FieldTypeConfig {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class FieldConfigTableComponent {
-  private readonly fieldConfigService = inject(FieldConfigService);
-  private readonly store = inject(Store);
-  
-  readonly isBrowser: boolean;
-  readonly columnDefs: ColDef[];
-  readonly modules: Module[] = [
+  protected readonly store = inject(FieldConfigStore);
+  readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
+
+  protected readonly modules: Module[] = [
     ClientSideRowModelModule,
     AllCommunityModule
   ];
 
-  readonly defaultColDef = {
+  protected readonly defaultColDef: ColDef = {
     sortable: true,
-    resizable: true
+    filter: true
   };
 
-  private readonly fieldTypes: FieldTypeConfig[] = [
-    { field: 'collapsedHeader', headerName: 'Collapsed Header Field Order' },
-    { field: 'samplePane', headerName: 'Sample Pane Field Order' }
-  ];
-
-  private async getAvailableOrders(data: any, field: string): Promise<number[]> {
-    return firstValueFrom(this.fieldConfigService.getAvailableOrder(field as FieldType));
-  }
-
-  readonly context: FieldConfigContext = {
-    getAvailableOrders: this.getAvailableOrders.bind(this)
-  };
-
-  readonly fieldConfigs$ = this.store.select(selectFieldConfigs);
-  readonly saving$ = this.store.select(selectSaving);
-
-  constructor(@Inject(PLATFORM_ID) platformId: Object) {
-    this.isBrowser = isPlatformBrowser(platformId);
-    this.columnDefs = this.createColumnDefs();
-    
-    // Load initial data
-    this.store.dispatch(FieldConfigActions.loadFieldConfigs());
-  }
-
-  private createColumnDefs(): ColDef[] {
-    if (!this.isBrowser) return [];
-
-    return [
-      { 
-        field: 'fieldName', 
-        headerName: 'Field Name',
-        flex: 1
-      },
-      ...this.fieldTypes.map(({ field, headerName }) => this.createOrderColumn(field, headerName))
-    ];
-  }
-
-  private dispatchAction(actionType: 'visibility' | 'order', params: { data: any, field: string, [key: string]: any }): void {
-    const action = actionType === 'visibility' 
-      ? FieldConfigActions.updateFieldVisibility({
-          id: params.data.id,
-          fieldType: params.field as FieldType,
-          visible: params['visible']
-        })
-      : FieldConfigActions.updateFieldOrder({
-          id: params.data.id,
-          fieldType: params.field as FieldType,
-          order: params['order']
-        });
-    
-    this.store.dispatch(action);
-  }
-
-  private createOrderColumn(field: string, headerName: string): ColDef {
-    return {
-      field,
-      headerName,
-      flex: 1.5,
+  protected readonly columnDefs: ColDef[] = [
+    { field: 'fieldName', headerName: 'Field Name', width: 150 },
+    {
+      field: 'collapsedHeader',
+      headerName: 'Collapsed Header',
       cellRenderer: CheckboxDropdownCellComponent,
       cellRendererParams: {
-        onChange: (params: { data: any, field: string, visible: boolean }) => 
-          this.dispatchAction('visibility', params),
-        onOrderChange: (params: { data: any, field: string, order: number }) => 
-          this.dispatchAction('order', params)
+        fieldType: 'collapsedHeader' as FieldType,
+        onVisibilityChange: (id: number, visible: boolean) => {
+          this.store.updateFieldVisibility(id, 'collapsedHeader', visible);
+        },
+        onOrderChange: (id: number, order: number | null) => {
+          this.store.updateFieldOrder(id, 'collapsedHeader', order);
+        },
+        getAvailableOrders: () => this.store.availableOrders()('collapsedHeader'),
+        getCheckedCount: () => this.store.checkedCount()('collapsedHeader')
       }
-    };
+    },
+    {
+      field: 'samplePane',
+      headerName: 'Sample Pane',
+      cellRenderer: CheckboxDropdownCellComponent,
+      cellRendererParams: {
+        fieldType: 'samplePane' as FieldType,
+        onVisibilityChange: (id: number, visible: boolean) => {
+          this.store.updateFieldVisibility(id, 'samplePane', visible);
+        },
+        onOrderChange: (id: number, order: number | null) => {
+          this.store.updateFieldOrder(id, 'samplePane', order);
+        },
+        getAvailableOrders: () => this.store.availableOrders()('samplePane'),
+        getCheckedCount: () => this.store.checkedCount()('samplePane')
+      }
+    }
+  ];
+
+  constructor() {
+    effect(() => {
+      if (this.store.error()) {
+        console.error('Error:', this.store.error());
+      }
+    });
   }
 
-  saveConfiguration(): void {
-    this.store.dispatch(FieldConfigActions.saveConfiguration());
+  protected onGridReady(): void {
+    this.store.loadFieldConfigs();
+  }
+
+  protected saveChanges(): void {
+    this.store.saveConfiguration();
   }
 }

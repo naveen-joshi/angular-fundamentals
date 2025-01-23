@@ -3,13 +3,15 @@ import { ICellRendererAngularComp } from 'ag-grid-angular';
 import { ICellRendererParams } from 'ag-grid-community';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Store } from '@ngrx/store';
 import { FieldType } from '../../services/field-config.service';
-import { selectAvailableOrders } from '../../store/field-config/field-config.selectors';
+import { FieldConfigStore } from '../../store/field-config/field-config.store';
 
 interface CheckboxDropdownParams extends ICellRendererParams {
-  onChange?: (params: { data: any; field: string; visible: boolean }) => void;
-  onOrderChange?: (params: { data: any; field: string; order: number }) => void;
+  onVisibilityChange?: (id: number, visible: boolean) => void;
+  onOrderChange?: (id: number, order: number | null) => void;
+  fieldType: FieldType;
+  getAvailableOrders: () => number[];
+  getCheckedCount: () => number;
 }
 
 interface FieldData {
@@ -25,8 +27,8 @@ interface FieldData {
     <div class="flex items-center gap-2">
       <input 
         type="checkbox"
-        [checked]="isChecked"
-        (change)="onCheckboxChange($event)"
+        [(ngModel)]="isChecked"
+        (ngModelChange)="onCheckboxChange($event)"
         class="form-checkbox h-5 w-5 text-blue-600"
       >
       @if (isChecked) {
@@ -35,8 +37,7 @@ interface FieldData {
           (ngModelChange)="onOrderChange($event)"
           class="px-2 py-1 border rounded flex-grow"
         >
-          <option [ngValue]="null">Select order...</option>
-          @for (order of availableOrders$ | async; track order) {
+          @for (order of params.getAvailableOrders(); track order) {
             <option [ngValue]="order">{{ order }}</option>
           }
         </select>
@@ -45,7 +46,7 @@ interface FieldData {
   `
 })
 export class CheckboxDropdownCellComponent implements ICellRendererAngularComp {
-  private readonly store = inject(Store);
+  protected readonly store = inject(FieldConfigStore);
   
   params!: CheckboxDropdownParams;
   fieldName: string = '';
@@ -54,10 +55,10 @@ export class CheckboxDropdownCellComponent implements ICellRendererAngularComp {
   
   isChecked = false;
   selectedOrder: number | null = null;
-  availableOrders$ = this.store.select(selectAvailableOrders(this.fieldType));
 
   private getFieldData(): FieldData {
-    const fieldData = this.params.data[this.fieldName];
+    const data = this.params.data;
+    const fieldData = data[this.fieldType];
     return {
       visible: fieldData?.visible ?? false,
       order: fieldData?.order ?? null
@@ -72,45 +73,44 @@ export class CheckboxDropdownCellComponent implements ICellRendererAngularComp {
 
   agInit(params: CheckboxDropdownParams): void {
     this.params = params;
-    if (params.colDef?.field) {
-      this.fieldName = params.colDef.field;
-      this.fieldType = this.fieldName as FieldType;
-      this.rowId = params.data.id;
-      this.availableOrders$ = this.store.select(selectAvailableOrders(this.fieldType));
-      this.initializeFieldState();
-    }
+    this.fieldName = params.colDef?.field ?? '';
+    this.fieldType = this.fieldName as FieldType;
+    this.rowId = params.data.id;
+    this.initializeFieldState();
   }
 
-  refresh(params: CheckboxDropdownParams): boolean {
+  refresh(): boolean {
     return false;
   }
 
-  onCheckboxChange(event: any): void {
-    const checked = event.target.checked;
-    this.isChecked = checked;
-    
-    if (this.params.onChange) {
-      this.params.onChange({
-        data: this.params.data,
-        field: this.fieldName,
-        visible: checked
-      });
+  onCheckboxChange(checked: boolean): void {
+    if (checked) {
+      // When checkbox is checked, get the current checked count directly from the signal
+      this.selectedOrder = this.params.getCheckedCount();
+      if (this.params.onOrderChange) {
+        this.params.onOrderChange(this.params.data.id, this.selectedOrder);
+      }
+    }
+
+    if (this.params.onVisibilityChange) {
+      this.params.onVisibilityChange(this.params.data.id, checked);
     }
 
     if (!checked) {
       this.selectedOrder = null;
+      if (this.params.onOrderChange) {
+        this.params.onOrderChange(this.params.data.id, null);
+      }
     }
   }
 
-  onOrderChange(order: number): void {
-    this.selectedOrder = order;
+  onOrderChange(value: number | null): void {
+    if (value === undefined) return;
     
-    if (this.params.onOrderChange) {
-      this.params.onOrderChange({
-        data: this.params.data,
-        field: this.fieldName,
-        order
-      });
+    this.selectedOrder = value;
+    
+    if (this.params.onOrderChange && value !== null) {
+      this.params.onOrderChange(this.params.data.id, value);
     }
   }
 }
