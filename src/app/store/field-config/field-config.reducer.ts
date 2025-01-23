@@ -1,7 +1,9 @@
 import { createReducer, on } from '@ngrx/store';
-import { FieldConfigActions } from './field-config.actions';
+import { FieldConfigActions, clearFieldOrder, resetUiState, setFieldChecked, setFieldOrder } from './field-config.actions';
 import { FieldConfig } from '../../services/field-config.service';
-import { FieldConfigState, initialFieldConfigState } from '../index';
+import { FieldConfigState, initialState as initialFieldConfigState } from './field-config.state';
+
+const getFieldKey = (rowId: string, fieldName: string): string => `${rowId}_${fieldName}`;
 
 export const fieldConfigReducer = createReducer(
   initialFieldConfigState,
@@ -15,7 +17,7 @@ export const fieldConfigReducer = createReducer(
   
   on(FieldConfigActions.loadFieldConfigsSuccess, (state: FieldConfigState, { configs }): FieldConfigState => ({
     ...state,
-    configs,
+    fieldConfigs: configs,
     loading: false,
     error: null
   })),
@@ -33,7 +35,7 @@ export const fieldConfigReducer = createReducer(
     
     return {
       ...state,
-      configs: state.configs.map(config => 
+      fieldConfigs: state.fieldConfigs.map(config => 
         config.id === id
           ? { 
               ...config, 
@@ -51,7 +53,7 @@ export const fieldConfigReducer = createReducer(
     
     return {
       ...state,
-      configs: state.configs.map(config =>
+      fieldConfigs: state.fieldConfigs.map(config =>
         config.id === id
           ? { ...config, [orderField]: order }
           : config
@@ -76,5 +78,51 @@ export const fieldConfigReducer = createReducer(
     ...state,
     saving: false,
     error
+  })),
+  
+  // UI State Actions
+  on(setFieldChecked, (state, { rowId, fieldName, checked }): FieldConfigState => {
+    const fieldKey = getFieldKey(rowId, fieldName);
+    return {
+      ...state,
+      uiState: {
+        ...state.uiState,
+        checkedFields: {
+          ...state.uiState.checkedFields,
+          [fieldKey]: checked
+        }
+      }
+    };
+  }),
+
+  on(setFieldOrder, (state, { rowId, fieldName, order }): FieldConfigState => {
+    const fieldKey = getFieldKey(rowId, fieldName);
+    return {
+      ...state,
+      uiState: {
+        ...state.uiState,
+        selectedOrders: {
+          ...state.uiState.selectedOrders,
+          [fieldKey]: order
+        }
+      }
+    };
+  }),
+
+  on(clearFieldOrder, (state, { rowId, fieldName }): FieldConfigState => {
+    const fieldKey = getFieldKey(rowId, fieldName);
+    const { [fieldKey]: _, ...remainingOrders } = state.uiState.selectedOrders;
+    return {
+      ...state,
+      uiState: {
+        ...state.uiState,
+        selectedOrders: remainingOrders
+      }
+    };
+  }),
+
+  on(resetUiState, (state): FieldConfigState => ({
+    ...state,
+    uiState: initialFieldConfigState.uiState
   }))
 );

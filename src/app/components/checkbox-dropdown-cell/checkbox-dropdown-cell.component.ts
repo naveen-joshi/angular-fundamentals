@@ -3,7 +3,9 @@ import { ICellRendererAngularComp } from 'ag-grid-angular';
 import { ICellRendererParams } from 'ag-grid-community';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { GridStore } from '../../store/grid.store';
+import { Store } from '@ngrx/store';
+import { FieldType } from '../../services/field-config.service';
+import { selectAvailableOrders } from '../../store/field-config/field-config.selectors';
 
 interface CheckboxDropdownParams extends ICellRendererParams {
   onChange?: (params: { data: any; field: string; visible: boolean }) => void;
@@ -33,7 +35,8 @@ interface FieldData {
           (ngModelChange)="onOrderChange($event)"
           class="px-2 py-1 border rounded flex-grow"
         >
-          @for (order of availableOrders()(fieldName); track order) {
+          <option [ngValue]="null">Select order...</option>
+          @for (order of availableOrders$ | async; track order) {
             <option [ngValue]="order">{{ order }}</option>
           }
         </select>
@@ -42,86 +45,49 @@ interface FieldData {
   `
 })
 export class CheckboxDropdownCellComponent implements ICellRendererAngularComp {
-  private readonly gridStore = inject(GridStore);
+  private readonly store = inject(Store);
   
   params!: CheckboxDropdownParams;
   fieldName: string = '';
   rowId: string = '';
+  fieldType: FieldType = 'collapsedHeader';
   
-  private getFieldData(): FieldData | undefined {
-    return this.params.data?.[this.fieldName];
+  isChecked = false;
+  selectedOrder: number | null = null;
+  availableOrders$ = this.store.select(selectAvailableOrders(this.fieldType));
+
+  private getFieldData(): FieldData {
+    const fieldData = this.params.data[this.fieldName];
+    return {
+      visible: fieldData?.visible ?? false,
+      order: fieldData?.order ?? null
+    };
   }
 
-  get isChecked(): boolean {
-    return this.getFieldData()?.visible ?? false;
-  }
-
-  get selectedOrder(): number | null {
+  private initializeFieldState(): void {
     const fieldData = this.getFieldData();
-    if (!fieldData?.visible) return null;
-    
-    if (fieldData.order !== null && fieldData.order > 0) {
-      return fieldData.order;
-    }
-    
-    const order = this.gridStore.getFieldOrder(this.rowId, this.fieldName);
-    return order > 0 ? order : null;
-  }
-
-  set selectedOrder(value: number | null) {
-    if (value !== null) {
-      this.onOrderChange(value);
-    }
-  }
-
-  readonly availableOrders = this.gridStore.availableOrders;
-
-  private initializeFieldState(fieldData: FieldData): void {
-    this.gridStore.setFieldChecked(this.rowId, this.fieldName, fieldData.visible);
-    if (fieldData.order !== null) {
-      this.gridStore.setFieldOrder(this.rowId, this.fieldName, fieldData.order);
-    }
+    this.isChecked = fieldData.visible;
+    this.selectedOrder = fieldData.order;
   }
 
   agInit(params: CheckboxDropdownParams): void {
     this.params = params;
     if (params.colDef?.field) {
       this.fieldName = params.colDef.field;
+      this.fieldType = this.fieldName as FieldType;
       this.rowId = params.data.id;
-      
-      const fieldData = this.getFieldData();
-      if (fieldData) {
-        this.initializeFieldState(fieldData);
-      }
+      this.availableOrders$ = this.store.select(selectAvailableOrders(this.fieldType));
+      this.initializeFieldState();
     }
   }
 
   refresh(params: CheckboxDropdownParams): boolean {
-    if (params.colDef?.field) {
-      this.params = params;
-      this.fieldName = params.colDef.field;
-      this.rowId = params.data.id;
-    }
-    return true;
+    return false;
   }
 
-  async updateAvailableOrders(): Promise<void> {
-    if (!this.params.colDef?.field) return;
-
-    const orders = await this.params.context.getAvailableOrders(
-      this.params.data, 
-      this.params.colDef.field
-    );
-
-    if (orders?.length > 0) {
-      this.gridStore.setFieldOrder(this.rowId, this.fieldName, orders[0]);
-    }
-  }
-
-  onCheckboxChange(event: Event): void {
-    const checked = (event.target as HTMLInputElement).checked;
-    
-    this.gridStore.setFieldChecked(this.rowId, this.fieldName, checked);
+  onCheckboxChange(event: any): void {
+    const checked = event.target.checked;
+    this.isChecked = checked;
     
     if (this.params.onChange) {
       this.params.onChange({
@@ -129,31 +95,22 @@ export class CheckboxDropdownCellComponent implements ICellRendererAngularComp {
         field: this.fieldName,
         visible: checked
       });
+    }
 
-      if (checked && this.params.onOrderChange) {
-        const order = this.gridStore.getFieldOrder(this.rowId, this.fieldName);
-        if (order > 0) {
-          this.params.onOrderChange({
-            data: this.params.data,
-            field: this.fieldName,
-            order
-          });
-        }
-      }
+    if (!checked) {
+      this.selectedOrder = null;
     }
   }
 
-  onOrderChange(order: number | null): void {
-    if (order !== null && order > 0) {
-      this.gridStore.setFieldOrder(this.rowId, this.fieldName, order);
-      
-      if (this.params.onOrderChange) {
-        this.params.onOrderChange({
-          data: this.params.data,
-          field: this.fieldName,
-          order
-        });
-      }
+  onOrderChange(order: number): void {
+    this.selectedOrder = order;
+    
+    if (this.params.onOrderChange) {
+      this.params.onOrderChange({
+        data: this.params.data,
+        field: this.fieldName,
+        order
+      });
     }
   }
 }

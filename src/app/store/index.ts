@@ -1,19 +1,8 @@
-import { FieldConfig } from '../services/field-config.service';
+import { FieldConfigState } from './field-config/field-config.state';
 
 export interface AppState {
   fieldConfig: FieldConfigState;
 }
 
-export interface FieldConfigState {
-  configs: FieldConfig[];
-  loading: boolean;
-  saving: boolean;
-  error: string | null;
-}
-
-export const initialFieldConfigState: FieldConfigState = {
-  configs: [],
-  loading: false,
-  saving: false,
-  error: null,
-};
+export type { FieldConfigState } from './field-config/field-config.state';
+export { initialState as initialFieldConfigState } from './field-config/field-config.state';

@@ -1,4 +1,4 @@
-import { createActionGroup, emptyProps, props } from '@ngrx/store';
+import { createAction, createActionGroup, emptyProps, props } from '@ngrx/store';
 import { FieldConfig, FieldType } from '../../services/field-config.service';
 
 export const FieldConfigActions = createActionGroup({
@@ -24,3 +24,22 @@ export const FieldConfigActions = createActionGroup({
     'Save Configuration Failure': props<{ error: string }>(),
   }
 });
+
+export const setFieldChecked = createAction(
+  '[Field Config] Set Field Checked',
+  props<{ rowId: string; fieldName: string; checked: boolean }>()
+);
+
+export const setFieldOrder = createAction(
+  '[Field Config] Set Field Order',
+  props<{ rowId: string; fieldName: string; order: number }>()
+);
+
+export const clearFieldOrder = createAction(
+  '[Field Config] Clear Field Order',
+  props<{ rowId: string; fieldName: string }>()
+);
+
+export const resetUiState = createAction(
+  '[Field Config] Reset UI State'
+);
