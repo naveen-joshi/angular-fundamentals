@@ -10,6 +10,8 @@ export interface FieldConfig {
   samplePaneOrder: number | null;
 }
 
+export type FieldType = 'collapsedHeader' | 'samplePane';
+
 @Injectable({
   providedIn: 'root'
 })
@@ -31,62 +33,61 @@ export class FieldConfigService {
     return this.fieldConfigs.asObservable();
   }
 
-  getCheckedCount(isHeaderField: boolean): Observable<number> {
-    return this.fieldConfigs.pipe(
-      map(configs => configs.filter(config => 
-        isHeaderField ? config.collapsedHeaderFieldVisible : config.samplePaneVisible
-      ).length)
-    );
+  private getFieldProperties(fieldType: FieldType): { visibleField: keyof FieldConfig; orderField: keyof FieldConfig } {
+    return fieldType === 'collapsedHeader'
+      ? { visibleField: 'collapsedHeaderFieldVisible', orderField: 'collapsedHeaderFieldOrder' }
+      : { visibleField: 'samplePaneVisible', orderField: 'samplePaneOrder' };
   }
 
-  updateHeaderVisibility(id: number, visible: boolean): void {
-    this.fieldConfigs.next(
-      this.fieldConfigs.value.map(config => 
-        config.id === id 
-          ? { ...config, collapsedHeaderFieldVisible: visible, collapsedHeaderFieldOrder: visible ? config.collapsedHeaderFieldOrder : null }
-          : config
-      )
+  private updateConfig(id: number, updates: Partial<FieldConfig>): void {
+    const currentConfigs = this.fieldConfigs.value;
+    const updatedConfigs = currentConfigs.map(config => 
+      config.id === id ? { ...config, ...updates } : config
     );
+    this.fieldConfigs.next(updatedConfigs);
+  }
+
+  updateVisibility(id: number, fieldType: FieldType, visible: boolean): void {
+    const { visibleField, orderField } = this.getFieldProperties(fieldType);
+    this.updateConfig(id, {
+      [visibleField]: visible,
+      [orderField]: visible ? this.fieldConfigs.value.find(c => c.id === id)?.[orderField] : null
+    });
+  }
+
+  updateOrder(id: number, fieldType: FieldType, order: number | null): void {
+    const { orderField } = this.getFieldProperties(fieldType);
+    this.updateConfig(id, { [orderField]: order });
+  }
+
+  // Public convenience methods
+  updateHeaderVisibility(id: number, visible: boolean): void {
+    this.updateVisibility(id, 'collapsedHeader', visible);
   }
 
   updateHeaderOrder(id: number, order: number | null): void {
-    this.fieldConfigs.next(
-      this.fieldConfigs.value.map(config => 
-        config.id === id 
-          ? { ...config, collapsedHeaderFieldOrder: order }
-          : config
-      )
-    );
+    this.updateOrder(id, 'collapsedHeader', order);
   }
 
   updatePaneVisibility(id: number, visible: boolean): void {
-    this.fieldConfigs.next(
-      this.fieldConfigs.value.map(config => 
-        config.id === id 
-          ? { ...config, samplePaneVisible: visible, samplePaneOrder: visible ? config.samplePaneOrder : null }
-          : config
-      )
-    );
+    this.updateVisibility(id, 'samplePane', visible);
   }
 
   updatePaneOrder(id: number, order: number | null): void {
-    this.fieldConfigs.next(
-      this.fieldConfigs.value.map(config => 
-        config.id === id 
-          ? { ...config, samplePaneOrder: order }
-          : config
-      )
-    );
+    this.updateOrder(id, 'samplePane', order);
   }
 
-  private reorderItems(configs: FieldConfig[], isHeaderField: boolean): FieldConfig[] {
-    const orderField = isHeaderField ? 'collapsedHeaderFieldOrder' : 'samplePaneOrder';
-    const visibleField = isHeaderField ? 'collapsedHeaderFieldVisible' : 'samplePaneVisible';
+  private reorderItems(configs: FieldConfig[], fieldType: FieldType): FieldConfig[] {
+    const { visibleField, orderField } = this.getFieldProperties(fieldType);
 
     // Get all checked items sorted by their current order
     const checkedItems = configs
       .filter(config => config[visibleField])
-      .sort((a, b) => (a[orderField] || 0) - (b[orderField] || 0));
+      .sort((a, b) => {
+        const aOrder = a[orderField] as number | null;
+        const bOrder = b[orderField] as number | null;
+        return (aOrder ?? 0) - (bOrder ?? 0);
+      });
 
     // Reassign orders sequentially starting from 1
     const reorderedConfigs = configs.map(config => {
@@ -100,11 +101,10 @@ export class FieldConfigService {
     return reorderedConfigs;
   }
 
-  updateFieldConfig(updatedConfig: FieldConfig, isHeaderField: boolean): void {
+  updateFieldConfig(updatedConfig: FieldConfig, fieldType: FieldType): void {
     const currentConfigs = this.fieldConfigs.getValue();
     let updatedConfigs = [...currentConfigs];
-    const orderField = isHeaderField ? 'collapsedHeaderFieldOrder' : 'samplePaneOrder';
-    const visibleField = isHeaderField ? 'collapsedHeaderFieldVisible' : 'samplePaneVisible';
+    const { visibleField, orderField } = this.getFieldProperties(fieldType);
     
     // If unchecking a field
     if (!updatedConfig[visibleField]) {
@@ -114,7 +114,7 @@ export class FieldConfigService {
         { ...updatedConfig, [orderField]: null } : config
       );
       // Then reorder all remaining checked items
-      updatedConfigs = this.reorderItems(updatedConfigs, isHeaderField);
+      updatedConfigs = this.reorderItems(updatedConfigs, fieldType);
     }
     // If changing order
     else if (updatedConfig[orderField] !== null) {
@@ -127,7 +127,7 @@ export class FieldConfigService {
           config.id === updatedConfig.id ? updatedConfig : config
         );
         // Then reorder all items to ensure sequential ordering
-        updatedConfigs = this.reorderItems(updatedConfigs, isHeaderField);
+        updatedConfigs = this.reorderItems(updatedConfigs, fieldType);
       }
     }
     // If checking a field (no order yet)
@@ -145,16 +145,24 @@ export class FieldConfigService {
     this.fieldConfigs.next(updatedConfigs);
   }
 
-  getAvailableOrder(isHeaderField: boolean): Observable<number[]> {
+  getAvailableOrder(fieldType: FieldType): Observable<number[]> {
     return this.fieldConfigs.pipe(
       map(configs => {
         const checkedCount = configs.filter(config => 
-          isHeaderField ? config.collapsedHeaderFieldVisible : config.samplePaneVisible
+          config[this.getFieldProperties(fieldType).visibleField]
         ).length;
         
         // Return all possible positions from 1 to checkedCount
         return Array.from({ length: checkedCount }, (_, i) => i + 1);
       })
+    );
+  }
+
+  getCheckedCount(fieldType: FieldType): Observable<number> {
+    return this.fieldConfigs.pipe(
+      map(configs => configs.filter(config => 
+        config[this.getFieldProperties(fieldType).visibleField]
+      ).length)
     );
   }
 }
