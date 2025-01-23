@@ -5,10 +5,18 @@ import { AgGridModule } from 'ag-grid-angular';
 import { AllCommunityModule, ClientSideRowModelModule, ColDef, Module } from 'ag-grid-community';
 import { CheckboxDropdownCellComponent } from '../checkbox-dropdown-cell/checkbox-dropdown-cell.component';
 import { FieldConfigService, FieldType } from '../../services/field-config.service';
-import { firstValueFrom, map } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
+import { Store } from '@ngrx/store';
+import { FieldConfigActions } from '../../store/field-config/field-config.actions';
+import { selectFieldConfigs, selectSaving } from '../../store/field-config/field-config.selectors';
 
 interface FieldConfigContext {
   getAvailableOrders: (data: any, field: string) => Promise<number[]>;
+}
+
+interface FieldTypeConfig {
+  field: FieldType;
+  headerName: string;
 }
 
 @Component({
@@ -43,8 +51,9 @@ interface FieldConfigContext {
         <button 
           (click)="saveConfiguration()"
           class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          [disabled]="saving$ | async"
         >
-          Save Configuration
+          {{ (saving$ | async) ? 'Saving...' : 'Save Configuration' }}
         </button>
       </div>
     </div>
@@ -53,6 +62,8 @@ interface FieldConfigContext {
 })
 export class FieldConfigTableComponent {
   private readonly fieldConfigService = inject(FieldConfigService);
+  private readonly store = inject(Store);
+  
   readonly isBrowser: boolean;
   readonly columnDefs: ColDef[];
   readonly modules: Module[] = [
@@ -65,16 +76,28 @@ export class FieldConfigTableComponent {
     resizable: true
   };
 
+  private readonly fieldTypes: FieldTypeConfig[] = [
+    { field: 'collapsedHeader', headerName: 'Collapsed Header Field Order' },
+    { field: 'samplePane', headerName: 'Sample Pane Field Order' }
+  ];
+
+  private async getAvailableOrders(data: any, field: string): Promise<number[]> {
+    return firstValueFrom(this.fieldConfigService.getAvailableOrder(field as FieldType));
+  }
+
   readonly context: FieldConfigContext = {
-    getAvailableOrders: async (data: any, field: string) => {
-      const orders = await firstValueFrom(this.fieldConfigService.getAvailableOrder(field as FieldType));
-      return orders;
-    }
+    getAvailableOrders: this.getAvailableOrders.bind(this)
   };
+
+  readonly fieldConfigs$ = this.store.select(selectFieldConfigs);
+  readonly saving$ = this.store.select(selectSaving);
 
   constructor(@Inject(PLATFORM_ID) platformId: Object) {
     this.isBrowser = isPlatformBrowser(platformId);
     this.columnDefs = this.createColumnDefs();
+    
+    // Load initial data
+    this.store.dispatch(FieldConfigActions.loadFieldConfigs());
   }
 
   private createColumnDefs(): ColDef[] {
@@ -86,9 +109,24 @@ export class FieldConfigTableComponent {
         headerName: 'Field Name',
         flex: 1
       },
-      this.createOrderColumn('collapsedHeader', 'Collapsed Header Field Order'),
-      this.createOrderColumn('samplePane', 'Sample Pane Field Order')
+      ...this.fieldTypes.map(({ field, headerName }) => this.createOrderColumn(field, headerName))
     ];
+  }
+
+  private dispatchAction(actionType: 'visibility' | 'order', params: { data: any, field: string, [key: string]: any }): void {
+    const action = actionType === 'visibility' 
+      ? FieldConfigActions.updateFieldVisibility({
+          id: params.data.id,
+          fieldType: params.field as FieldType,
+          visible: params['visible']
+        })
+      : FieldConfigActions.updateFieldOrder({
+          id: params.data.id,
+          fieldType: params.field as FieldType,
+          order: params['order']
+        });
+    
+    this.store.dispatch(action);
   }
 
   private createOrderColumn(field: string, headerName: string): ColDef {
@@ -98,39 +136,15 @@ export class FieldConfigTableComponent {
       flex: 1.5,
       cellRenderer: CheckboxDropdownCellComponent,
       cellRendererParams: {
-        onChange: (params: { data: any, field: string, visible: boolean }) => {
-          const updateFn = field === 'collapsedHeader' 
-            ? this.fieldConfigService.updateHeaderVisibility.bind(this.fieldConfigService)
-            : this.fieldConfigService.updatePaneVisibility.bind(this.fieldConfigService);
-          updateFn(params.data.id, params.visible);
-        },
-        onOrderChange: (params: { data: any, field: string, order: number }) => {
-          const updateFn = field === 'collapsedHeader'
-            ? this.fieldConfigService.updateHeaderOrder.bind(this.fieldConfigService)
-            : this.fieldConfigService.updatePaneOrder.bind(this.fieldConfigService);
-          updateFn(params.data.id, params.order);
-        }
+        onChange: (params: { data: any, field: string, visible: boolean }) => 
+          this.dispatchAction('visibility', params),
+        onOrderChange: (params: { data: any, field: string, order: number }) => 
+          this.dispatchAction('order', params)
       }
     };
   }
 
-  readonly fieldConfigs$ = this.fieldConfigService.getFieldConfigs().pipe(
-    map(configs => configs.map(config => ({
-      ...config,
-      collapsedHeader: {
-        visible: config.collapsedHeaderFieldVisible,
-        order: config.collapsedHeaderFieldOrder
-      },
-      samplePane: {
-        visible: config.samplePaneVisible,
-        order: config.samplePaneOrder
-      }
-    })))
-  );
-
-  async saveConfiguration(): Promise<void> {
-    // You can add any validation or additional logic here before saving
-    console.log('Configuration saved successfully');
-    // TODO: Add actual save to backend implementation when needed
+  saveConfiguration(): void {
+    this.store.dispatch(FieldConfigActions.saveConfiguration());
   }
 }
