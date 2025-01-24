@@ -31,7 +31,7 @@ interface FieldData {
         (ngModelChange)="onCheckboxChange($event)"
         class="form-checkbox h-5 w-5 text-blue-600"
       >
-      @if (isChecked) {
+      @if (isChecked && selectedOrder !== null) {
         <select 
           [(ngModel)]="selectedOrder"
           (ngModelChange)="onOrderChange($event)"
@@ -85,10 +85,11 @@ export class CheckboxDropdownCellComponent implements ICellRendererAngularComp {
 
   onCheckboxChange(checked: boolean): void {
     if (checked) {
-      // When checkbox is checked, get the current checked count directly from the signal
-      this.selectedOrder = this.params.getCheckedCount();
+      // Add 1 to the current count since this checkbox is being checked
+      const newOrder = this.params.getCheckedCount() + 1;
+      this.selectedOrder = newOrder;
       if (this.params.onOrderChange) {
-        this.params.onOrderChange(this.params.data.id, this.selectedOrder);
+        this.params.onOrderChange(this.params.data.id, newOrder);
       }
     }
 
