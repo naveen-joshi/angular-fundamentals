@@ -79,7 +79,7 @@ export class FieldConfigTableComponent {
     filter: true
   };
 
-  protected readonly columnDefs: ColDef[] = [
+  public readonly columnDefs: ColDef[] = [
     { field: 'fieldName', headerName: 'Field Name', width: 150 },
     {
       field: 'collapsedHeader',

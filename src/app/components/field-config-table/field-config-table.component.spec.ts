@@ -22,13 +22,13 @@ describe('FieldConfigTableComponent', () => {
         { id: 1, fieldName: 'Field 1', collapsedHeaderFieldVisible: false, collapsedHeaderFieldOrder: null, samplePaneVisible: false, samplePaneOrder: null },
         { id: 2, fieldName: 'Field 2', collapsedHeaderFieldVisible: true, collapsedHeaderFieldOrder: 1, samplePaneVisible: false, samplePaneOrder: null }
       ],
-      lastSavedConfigs: [
-        { id: 1, fieldName: 'Field 1', collapsedHeaderFieldVisible: false, collapsedHeaderFieldOrder: null, samplePaneVisible: false, samplePaneOrder: null },
-        { id: 2, fieldName: 'Field 2', collapsedHeaderFieldVisible: true, collapsedHeaderFieldOrder: 1, samplePaneVisible: false, samplePaneOrder: null }
-      ],
       loading: false,
       saving: false,
-      error: null
+      error: null,
+      uiState: {
+        checkedFields: {},
+        selectedOrders: {}
+      }
     }
   };
 
@@ -141,7 +141,7 @@ describe('FieldConfigTableComponent', () => {
     fixture.detectChanges();
 
     const dispatchSpy = jest.spyOn(store, 'dispatch');
-    component.saveConfiguration();
+    component.saveChanges();
     expect(dispatchSpy).toHaveBeenCalledWith(FieldConfigActions.saveConfiguration());
   });
 
@@ -227,11 +227,11 @@ describe('FieldConfigTableComponent', () => {
     });
 
     it('should handle revert action', () => {
-      const dispatchSpy = jest.spyOn(store, 'dispatch');
+      const revertSpy = jest.spyOn(store, 'revertToLastSaved');
       
-      component.revertChanges();
+      component.cancelChanges();
       
-      expect(dispatchSpy).toHaveBeenCalledWith(FieldConfigActions.revertToLastSaved());
+      expect(revertSpy).toHaveBeenCalled();
     });
 
     it('should disable revert button when no changes', () => {
