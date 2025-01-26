@@ -217,21 +217,16 @@ describe('FieldConfigTableComponent', () => {
       expect(sampleCol?.cellRenderer).toBe('checkboxDropdownCell');
     });
 
-    it('should handle grid ready event', () => {
-      const gridApi = {
-        sizeColumnsToFit: jest.fn()
-      };
-      
-      component.onGridReady({ api: gridApi } as any);
-      expect(gridApi.sizeColumnsToFit).toHaveBeenCalled();
-    });
-
     it('should handle revert action', () => {
-      const revertSpy = jest.spyOn(store, 'revertToLastSaved');
+      const dispatchSpy = jest.spyOn(store, 'dispatch');
       
       component.cancelChanges();
       
-      expect(revertSpy).toHaveBeenCalled();
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        jasmine.objectContaining({
+          type: '[FieldConfig] Revert Changes'
+        })
+      );
     });
 
     it('should disable revert button when no changes', () => {

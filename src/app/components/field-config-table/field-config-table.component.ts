@@ -123,15 +123,15 @@ export class FieldConfigTableComponent {
     });
   }
 
-  protected onGridReady(): void {
+  public onGridReady(): void {
     this.store.loadFieldConfigs();
   }
 
-  protected saveChanges(): void {
+  public saveChanges(): void {
     this.store.saveConfiguration();
   }
 
-  protected cancelChanges(): void {
+  public cancelChanges(): void {
     this.store.revertToLastSaved();
   }
 }
