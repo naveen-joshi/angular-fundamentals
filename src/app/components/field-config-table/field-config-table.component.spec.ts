@@ -222,11 +222,9 @@ describe('FieldConfigTableComponent', () => {
       
       component.cancelChanges();
       
-      expect(dispatchSpy).toHaveBeenCalledWith(
-        jasmine.objectContaining({
-          type: '[FieldConfig] Revert Changes'
-        })
-      );
+      expect(dispatchSpy).toHaveBeenCalledWith({
+        type: '[FieldConfig] Revert Changes'
+      });
     });
 
     it('should disable revert button when no changes', () => {
