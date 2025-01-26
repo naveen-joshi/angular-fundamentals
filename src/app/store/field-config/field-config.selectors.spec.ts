@@ -3,7 +3,8 @@ import {
   selectLoading,
   selectSaving,
   selectError,
-  selectCheckedCount
+  selectCheckedCount,
+  selectAvailableOrders
 } from './field-config.selectors';
 import { AppState } from '../index';
 
@@ -83,6 +84,74 @@ describe('FieldConfig Selectors', () => {
     it('should return correct count for samplePane', () => {
       const result = selectCheckedCount('samplePane')(initialState);
       expect(result).toBe(1); // Only one config has samplePaneVisible true
+    });
+  });
+
+  describe('selectAvailableOrders', () => {
+    it('should return correct available orders for collapsedHeader', () => {
+      const result = selectAvailableOrders('collapsedHeader')(initialState);
+      expect(result).toEqual([1]); // Only one visible field, so only order 1 is available
+    });
+
+    it('should return correct available orders for samplePane', () => {
+      const result = selectAvailableOrders('samplePane')(initialState);
+      expect(result).toEqual([1]); // Only one visible field, so only order 1 is available
+    });
+
+    it('should return empty array when no fields are visible', () => {
+      const stateWithNoVisible = {
+        fieldConfig: {
+          ...initialState.fieldConfig,
+          configs: [
+            {
+              id: 1,
+              fieldName: 'Field 1',
+              collapsedHeaderFieldVisible: false,
+              collapsedHeaderFieldOrder: null,
+              samplePaneVisible: false,
+              samplePaneOrder: null
+            }
+          ]
+        }
+      };
+      const result = selectAvailableOrders('collapsedHeader')(stateWithNoVisible);
+      expect(result).toEqual([]); // No visible fields, so no orders available
+    });
+
+    it('should return sequential numbers up to visible count', () => {
+      const stateWithMultipleVisible = {
+        fieldConfig: {
+          ...initialState.fieldConfig,
+          configs: [
+            {
+              id: 1,
+              fieldName: 'Field 1',
+              collapsedHeaderFieldVisible: true,
+              collapsedHeaderFieldOrder: 1,
+              samplePaneVisible: false,
+              samplePaneOrder: null
+            },
+            {
+              id: 2,
+              fieldName: 'Field 2',
+              collapsedHeaderFieldVisible: true,
+              collapsedHeaderFieldOrder: 2,
+              samplePaneVisible: false,
+              samplePaneOrder: null
+            },
+            {
+              id: 3,
+              fieldName: 'Field 3',
+              collapsedHeaderFieldVisible: true,
+              collapsedHeaderFieldOrder: 3,
+              samplePaneVisible: false,
+              samplePaneOrder: null
+            }
+          ]
+        }
+      };
+      const result = selectAvailableOrders('collapsedHeader')(stateWithMultipleVisible);
+      expect(result).toEqual([1, 2, 3]); // Three visible fields, so orders 1-3 are available
     });
   });
 });

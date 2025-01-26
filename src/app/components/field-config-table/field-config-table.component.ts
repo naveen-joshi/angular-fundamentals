@@ -47,6 +47,13 @@ interface FieldTypeConfig {
           <span class="text-red-600">{{ store.error() }}</span>
         }
         <button
+          class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 disabled:opacity-50 mr-2"
+          [disabled]="store.saving()"
+          (click)="cancelChanges()"
+        >
+          Cancel
+        </button>
+        <button
           class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
           [disabled]="store.saving()"
           (click)="saveChanges()"
@@ -122,5 +129,9 @@ export class FieldConfigTableComponent {
 
   protected saveChanges(): void {
     this.store.saveConfiguration();
+  }
+
+  protected cancelChanges(): void {
+    this.store.revertToLastSaved();
   }
 }

@@ -8,6 +8,7 @@ import { FieldConfigService } from '../../services/field-config.service';
 
 export interface FieldConfigState {
   fieldConfigs: FieldConfig[];
+  lastSavedConfigs: FieldConfig[];
   loading: boolean;
   saving: boolean;
   error: string | null;
@@ -15,6 +16,7 @@ export interface FieldConfigState {
 
 const initialState: FieldConfigState = {
   fieldConfigs: [],
+  lastSavedConfigs: [],
   loading: false,
   saving: false,
   error: null
@@ -33,7 +35,8 @@ export const FieldConfigStore = signalStore(
           service.getFieldConfigs().pipe(
             tap(fieldConfigs => {
               patchState(store, {
-                fieldConfigs,
+                fieldConfigs: fieldConfigs.map(config => ({ ...config })),
+                lastSavedConfigs: fieldConfigs.map(config => ({ ...config })),
                 loading: false,
                 error: null
               });
@@ -59,6 +62,7 @@ export const FieldConfigStore = signalStore(
           service.saveFieldConfigs(store.fieldConfigs()).pipe(
             tap(() => {
               patchState(store, {
+                lastSavedConfigs: store.fieldConfigs().map(config => ({ ...config })),
                 saving: false,
                 error: null
               });
@@ -101,6 +105,13 @@ export const FieldConfigStore = signalStore(
             ? { ...config, [orderField]: order }
             : config
         )
+      });
+    },
+
+    revertToLastSaved() {
+      patchState(store, {
+        fieldConfigs: store.lastSavedConfigs().map(config => ({ ...config })),
+        error: null
       });
     }
   })),
