@@ -144,6 +144,66 @@ describe('FieldConfigStore', () => {
     });
   });
 
+  describe('revertToLastSaved', () => {
+    beforeEach(async () => {
+      mockFieldConfigService.getFieldConfigs.mockReturnValue(of(mockFieldConfigs));
+      store.loadFieldConfigs();
+      await new Promise(process.nextTick);
+    });
+
+    it('should revert all changes to last saved state', () => {
+      // Make some changes
+      store.updateFieldVisibility(1, 'collapsedHeader', false);
+      store.updateFieldOrder(2, 'samplePane', 999);
+
+      // Revert changes
+      store.revertToLastSaved();
+
+      // Verify original state is restored
+      expect(store.fieldConfigs()).toEqual(store.lastSavedConfigs());
+      expect(store.fieldConfigs()[0].collapsedHeaderFieldVisible).toBe(true);
+      expect(store.fieldConfigs()[1].samplePaneOrder).toBe(1);
+    });
+
+    it('should not affect state if no changes were made', () => {
+      const beforeRevert = store.fieldConfigs();
+      store.revertToLastSaved();
+      expect(store.fieldConfigs()).toEqual(beforeRevert);
+    });
+  });
+
+  describe('error handling', () => {
+    it('should clear error when new operation starts', async () => {
+      // Set initial error state
+      mockFieldConfigService.getFieldConfigs.mockReturnValue(throwError(() => new Error('Initial error')));
+      store.loadFieldConfigs();
+      await new Promise(process.nextTick);
+      expect(store.error()).toBeTruthy();
+
+      // Start new operation
+      mockFieldConfigService.getFieldConfigs.mockReturnValue(of(mockFieldConfigs));
+      store.loadFieldConfigs();
+      expect(store.error()).toBeNull();
+    });
+
+    it('should maintain last saved state even when save fails', async () => {
+      mockFieldConfigService.getFieldConfigs.mockReturnValue(of(mockFieldConfigs));
+      store.loadFieldConfigs();
+      await new Promise(process.nextTick);
+
+      const originalState = store.lastSavedConfigs();
+      
+      // Make changes and fail save
+      store.updateFieldVisibility(1, 'collapsedHeader', false);
+      mockFieldConfigService.saveFieldConfigs.mockReturnValue(throwError(() => new Error('Save failed')));
+      
+      store.saveConfiguration();
+      await new Promise(process.nextTick);
+
+      expect(store.lastSavedConfigs()).toEqual(originalState);
+    });
+  });
+
   describe('computed selectors', () => {
     beforeEach(async () => {
       mockFieldConfigService.getFieldConfigs.mockReturnValue(of(mockFieldConfigs));

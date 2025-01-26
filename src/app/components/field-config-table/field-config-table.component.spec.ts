@@ -18,7 +18,11 @@ describe('FieldConfigTableComponent', () => {
 
   const initialState = {
     fieldConfig: {
-      configs: [
+      fieldConfigs: [
+        { id: 1, fieldName: 'Field 1', collapsedHeaderFieldVisible: false, collapsedHeaderFieldOrder: null, samplePaneVisible: false, samplePaneOrder: null },
+        { id: 2, fieldName: 'Field 2', collapsedHeaderFieldVisible: true, collapsedHeaderFieldOrder: 1, samplePaneVisible: false, samplePaneOrder: null }
+      ],
+      lastSavedConfigs: [
         { id: 1, fieldName: 'Field 1', collapsedHeaderFieldVisible: false, collapsedHeaderFieldOrder: null, samplePaneVisible: false, samplePaneOrder: null },
         { id: 2, fieldName: 'Field 2', collapsedHeaderFieldVisible: true, collapsedHeaderFieldOrder: 1, samplePaneVisible: false, samplePaneOrder: null }
       ],
@@ -156,5 +160,85 @@ describe('FieldConfigTableComponent', () => {
 
     const saveButton = fixture.nativeElement.querySelector('button');
     expect(saveButton.disabled).toBe(true);
+  });
+
+  it('should show error message when there is an error', () => {
+    const errorMessage = 'Test error message';
+    store.setState({
+      ...initialState,
+      fieldConfig: {
+        ...initialState.fieldConfig,
+        error: errorMessage
+      }
+    });
+
+    fixture = TestBed.createComponent(FieldConfigTableComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const errorElement = fixture.nativeElement.querySelector('.text-red-600');
+    expect(errorElement.textContent).toContain(errorMessage);
+  });
+
+  it('should show saving indicator when saving', () => {
+    store.setState({
+      ...initialState,
+      fieldConfig: {
+        ...initialState.fieldConfig,
+        saving: true
+      }
+    });
+
+    fixture = TestBed.createComponent(FieldConfigTableComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const savingElement = fixture.nativeElement.querySelector('.text-blue-600');
+    expect(savingElement.textContent).toContain('Saving changes...');
+  });
+
+  describe('grid interactions', () => {
+    beforeEach(() => {
+      fixture = TestBed.createComponent(FieldConfigTableComponent);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+    });
+
+    it('should have correct column definitions', () => {
+      expect(component.columnDefs.length).toBeGreaterThan(0);
+      expect(component.columnDefs[0].field).toBe('fieldName');
+      
+      const headerCol = component.columnDefs.find(col => col.field === 'collapsedHeader');
+      expect(headerCol).toBeTruthy();
+      expect(headerCol?.cellRenderer).toBe('checkboxDropdownCell');
+      
+      const sampleCol = component.columnDefs.find(col => col.field === 'samplePane');
+      expect(sampleCol).toBeTruthy();
+      expect(sampleCol?.cellRenderer).toBe('checkboxDropdownCell');
+    });
+
+    it('should handle grid ready event', () => {
+      const gridApi = {
+        sizeColumnsToFit: jest.fn()
+      };
+      
+      component.onGridReady({ api: gridApi } as any);
+      expect(gridApi.sizeColumnsToFit).toHaveBeenCalled();
+    });
+
+    it('should handle revert action', () => {
+      const dispatchSpy = jest.spyOn(store, 'dispatch');
+      
+      component.revertChanges();
+      
+      expect(dispatchSpy).toHaveBeenCalledWith(FieldConfigActions.revertToLastSaved());
+    });
+
+    it('should disable revert button when no changes', () => {
+      fixture.detectChanges();
+      
+      const revertButton = fixture.nativeElement.querySelectorAll('button')[0];
+      expect(revertButton.disabled).toBe(true);
+    });
   });
 });
